@@ -2,37 +2,50 @@
 'use server';
 
 import { PrismaClient } from '@prisma/client';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../app/api/auth/[...nextauth]/route';
+import { revalidatePath } from 'next/cache';
 
 const prisma = new PrismaClient();
 
-export async function saveRating(albumId: string, rating: number) {
+export async function saveRating(albumId: string, rating: number, text?: string) {
     try {
-        // Buscamos a tu usuario base temporal, si no existe lo creamos
-        let user = await prisma.user.findUnique({
-            where: { username: 'leojc' }
+        const session = await getServerSession(authOptions);
+        if (!session || !session.user?.email) {
+            return { success: false, error: "Debes iniciar sesión." };
+        }
+
+        const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+        if (!user) return { success: false, error: "Usuario no encontrado." };
+
+        // Usamos UPSERT: Si ya existe una reseña de este usuario para este álbum, la actualiza.
+        // Para que esto funcione perfecto, necesitamos un índice único en Prisma (lo haremos en el siguiente paso).
+
+        // Buscamos si ya existe para decidir si actualizar o crear manualmente por ahora:
+        const existingReview = await prisma.review.findFirst({
+            where: { userId: user.id, albumId: albumId.toString() }
         });
 
-        if (!user) {
-            user = await prisma.user.create({
+        if (existingReview) {
+            await prisma.review.update({
+                where: { id: existingReview.id },
+                data: { rating, text: text || null }
+            });
+        } else {
+            await prisma.review.create({
                 data: {
-                    username: 'leojc',
-                    email: 'leojc@app.com',
+                    rating,
+                    text: text || null,
+                    albumId: albumId.toString(),
+                    userId: user.id
                 }
             });
         }
 
-        // Guardamos la reseña en la base de datos
-        await prisma.review.create({
-            data: {
-                rating,
-                albumId: albumId.toString(),
-                userId: user.id
-            }
-        });
-
+        revalidatePath(`/album/${albumId}`);
         return { success: true };
     } catch (error) {
-        console.error("Error guardando calificación:", error);
-        return { success: false };
+        console.error(error);
+        return { success: false, error: "Error al procesar la reseña." };
     }
 }

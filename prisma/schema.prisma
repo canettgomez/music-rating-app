@@ -10,17 +10,22 @@ generator client {
 
 datasource db {
   provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 // Tabla de Usuarios
 model User {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  email     String   @unique
-  createdAt DateTime @default(now())
+  id            String    @id @default(cuid())
+  name          String?   
+  email         String?   @unique
+  password      String?   
+  emailVerified DateTime?
+  image         String?
   
-  // Relaciones: Un usuario puede tener muchas reseñas
-  reviews   Review[]
+  accounts      Account[]
+  sessions      Session[]
+  reviews       Review[]  
+  toListen      ToListen[]
 }
 
 // Tabla de Reseñas y Calificaciones (El "Diario")
@@ -36,5 +41,48 @@ model Review {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Índice para buscar rápido las reseñas de un disco
+  @@unique([userId, albumId])
+}
+
+// Tablas de auth
+model Account {
+  id                String   @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ToListen {
+  id        String   @id @default(cuid())
+  albumId   String   
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, albumId])
   @@index([albumId])
 }
+
