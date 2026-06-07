@@ -26,21 +26,23 @@ model User {
   sessions      Session[]
   reviews       Review[]  
   toListen      ToListen[]
+  followers     User[] @relation("UserFollows")
+  following     User[] @relation("UserFollows")
+  playlists     Playlist[]
 }
 
 // Tabla de Reseñas y Calificaciones (El "Diario")
 model Review {
-  id        String   @id @default(uuid())
-  rating    Int      // 1 al 5 estrellas
-  text      String?  @db.Text 
-  albumId   String   // El ID que nos devuelve Apple
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  rating     Int      // 1 al 5 estrellas
+  text       String?  @db.Text 
+  albumId    String   // El ID que nos devuelve Apple
+  listenedAt DateTime @default(now()) // Fecha en que se escuchó el disco
+  createdAt  DateTime @default(now())
 
-  // Relación con el Usuario
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Índice para buscar rápido las reseñas de un disco
   @@unique([userId, albumId])
 }
 
@@ -84,5 +86,31 @@ model ToListen {
 
   @@unique([userId, albumId])
   @@index([albumId])
+}
+
+model Playlist {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  isPublic    Boolean  @default(true)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  albums      PlaylistAlbum[]
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PlaylistAlbum {
+  id         String   @id @default(cuid())
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  albumId    String
+  notes      String?  @db.Text
+  order      Int      @default(0)
+  addedAt    DateTime @default(now())
+
+  @@unique([playlistId, albumId])
+  @@index([playlistId])
 }
 
